@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { getGoodsByIdAPI } from '@/services/goods'
-import type { GoodsResult } from '@/types/goods'
-import { onLoad } from '@dcloudio/uni-app'
+import { getGoodsByIdAPI } from '@/services/goods';
+import type { GoodsResult } from '@/types/goods';
+import { onLoad } from '@dcloudio/uni-app';
+import { computed, ref } from 'vue';
 import AddressPanel from './components/AddressPanel.vue'
 import ServicePanel from './components/ServicePanel.vue'
-import { computed, ref } from 'vue'
-import type { SkuPopupLocaldata } from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup'
-import type { SkuPopupProps } from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup'
+import type { SkuPopupEvent, SkuPopupLocaldata, SkuPopupProps } from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup';
+import { postMemberCartAPI } from '@/services/cart';
 
 // 获取屏幕边界到安全区域距离
 const { safeAreaInsets } = uni.getSystemInfoSync()
@@ -14,13 +14,12 @@ const { safeAreaInsets } = uni.getSystemInfoSync()
 const query = defineProps<{
   id: string
 }>()
-
-// 获取商品详情信息
+// 修复sku组件无法打开的情况
+let isOk = false
 const goods = ref<GoodsResult>()
 const getGoodsByIdData = async () => {
-  const res = await getGoodsByIdAPI(query.id)
+  const res = await getGoodsByIdAPI(query.id);
   goods.value = res.result
-  // SKU所需格式
   localdata.value = {
     _id: res.result.id,
     name: res.result.name,
@@ -28,111 +27,110 @@ const getGoodsByIdData = async () => {
     spec_list: res.result.specs.map((v) => {
       return {
         name: v.name,
-        list: v.values,
+        list: v.values
       }
     }),
     sku_list: res.result.skus.map((v) => {
       return {
-        _id: v.id, // SKU ID
-        goods_id: res.result.id, // 商品 ID
-        goods_name: res.result.name, // 商品名称
-        image: v.picture, // 商品图片
-        price: v.price * 100, // 商品价格 价格乘 100 为实际价格
-        stock: v.inventory, // 商品库存
-        sku_name_arr: v.specs.map((vv) => vv.valueName), // 规格组成
+        _id: v.id,
+        goods_id: res.result.id,
+        goods_name: res.result.name,
+        image: v.picture,
+        price: v.price * 100,
+        stock: v.inventory,
+        sku_name_arr: v.specs.map((vv) => vv.valueName)
       }
-    }),
+    })
   }
+  isOk = true
 }
-
-// 轮播图变化业务
+// 轮播图发生改变
 const currentIndex = ref(0)
 const onChange: UniHelper.SwiperOnChange = (ev) => {
   currentIndex.value = ev.detail!.current
 }
 
-// 点击图片时业务
+// 图片被单击事件
 const onTapImage = (url: string) => {
+  // 查看大图
   uni.previewImage({
     current: url,
     urls: goods.value!.mainPictures,
   })
 }
 
-type UniPopupType = 'top' | 'center' | 'bottom' | 'left' | 'right' | 'message' | 'dialog' | 'share'
+// 可选参数类型定义
+type UniPopupType = "top" | "center" | "bottom" | "left" | "right" | "message" | "dialog" | "share"
+// 弹出层类型定义
 type UniPopup = {
   open: (type?: UniPopupType) => void
   close: () => void
 }
-// uni-ui 弹出层组件实例
 const popup = ref<UniPopup | null>(null)
 
-// 弹出层条件渲染
-const popupName = ref<'address' | 'service'>()
-// 打开弹出层
+onLoad(() => {
+  getGoodsByIdData()
+})
+
+// 弹出层显示内容组件的标识
+const popupName = ref<"address" | "service">('service')
+// 指定打开弹出层的内容
 const openPopup = (name: typeof popupName.value) => {
   popupName.value = name
   popup.value?.open()
 }
 
-// 是否显示 sku 组件
+// sku组件实例
+const skuPopupRef = ref<SkuPopupProps>()
+
+// 开关 SKU弹出层
 const isShowSku = ref(false)
-// 商品信息
 const localdata = ref({} as SkuPopupLocaldata)
 
-// 枚举
 enum SkuMode {
   Both = 1,
   Cart = 2,
-  Buy = 3,
+  Buy = 3
 }
-// 按钮模式
 const mode = ref<SkuMode>(SkuMode.Both)
-
-// 打开SKU弹窗 设置样式
 const openSkuPopup = (val: SkuMode) => {
-  isShowSku.value = true
+  if (!isOk) return
   mode.value = val
+  isShowSku.value = true
 }
-
-// SKU组件实例
-const skuPopupRef = ref<SkuPopupProps>()
-
-// 当前SKU选中项
-const selectArrText = computed(() => {
-  return skuPopupRef.value?.selectArr?.join(' ').trim() || '请选择商品规格'
-})
 
 // SKU组件内容自定义样式
 const activedStyle = {
-  color: '#27BA9B',
-  borderColor: '#27BA9B',
-  backgroundColor: '#E9F8F5',
+  color: "#27BA9B",
+  borderColor: "#27BA9B",
+  backgroundColor: "#E9F8F5"
 }
-onLoad(() => {
-  getGoodsByIdData()
+
+const selectArrText = computed(() => {
+  return skuPopupRef.value?.selectArr?.join(" ").trim() || "请选择商品规格"
 })
+
+
+// sku选择后的回调
+const onAddCart = async (ev: SkuPopupEvent) => {
+  await postMemberCartAPI({ skuId: ev._id, count: ev.buy_num })
+  uni.showToast({ title: "添加成功" })
+  isShowSku.value = false
+}
 </script>
 
 <template>
-  <!-- sku弹窗组件 -->
-  <vk-data-goods-sku-popup
-    v-model="isShowSku"
-    :localdata="localdata"
-    :mode="mode"
-    add-cart-background-color="#FFA858"
-    buy-now-background-color="#27BA9B"
-    ref="skuPopupRef"
-    :actived-style="activedStyle"
-  />
+  <vk-data-goods-sku-popup ref="skuPopupRef" v-model="isShowSku" :localdata="localdata" :mode="mode"
+    addCartBackgroundColor="#ffa868" buyNowBackgroundColor="#27ba9b" :activedStyle="activedStyle"
+    @add-cart="onAddCart" />
   <scroll-view scroll-y class="viewport">
     <!-- 基本信息 -->
     <view class="goods">
       <!-- 商品主图 -->
       <view class="preview">
         <swiper circular @change="onChange">
-          <swiper-item v-for="item in goods?.mainPictures" :key="item">
-            <image @tap="onTapImage(item)" mode="aspectFill" :src="item" />
+          <swiper-item v-for="src in goods?.mainPictures" :key="src">
+            <image @tap="onTapImage(src)" mode="aspectFill" :src="src" />
           </swiper-item>
         </swiper>
         <view class="indicator">
@@ -148,7 +146,7 @@ onLoad(() => {
           <text class="symbol">¥</text>
           <text class="number">{{ goods?.price }}</text>
         </view>
-        <view class="name ellipsis">{{ goods?.name }}</view>
+        <view class="name ellipsis">{{ goods?.name }} </view>
         <view class="desc"> {{ goods?.desc }} </view>
       </view>
 
@@ -177,18 +175,13 @@ onLoad(() => {
       <view class="content">
         <view class="properties">
           <!-- 属性详情 -->
-          <view class="item" v-for="item in goods?.details.properties" :key="item.name">
+          <view class="item" v-for="item in goods?.details.properties" :key="item.value">
             <text class="label">{{ item.name }}</text>
             <text class="value">{{ item.value }}</text>
           </view>
         </view>
         <!-- 图片详情 -->
-        <image
-          v-for="item in goods?.details.pictures"
-          :key="item"
-          mode="widthFix"
-          :src="item"
-        ></image>
+        <image v-for="src in goods?.details.pictures" mode="widthFix" :src="src"></image>
       </view>
     </view>
 
@@ -198,13 +191,8 @@ onLoad(() => {
         <text>同类推荐</text>
       </view>
       <view class="content">
-        <navigator
-          v-for="item in goods?.similarProducts"
-          :key="item.id"
-          class="goods"
-          hover-class="none"
-          :url="`/pages/goods/goods?id=${item.id}`"
-        >
+        <navigator v-for="item in goods?.similarProducts" :key="item.id" class="goods" hover-class="none"
+          :url="`/pages/goods/goods?id=${item.id}`">
           <image class="image" mode="aspectFill" :src="item.picture"></image>
           <view class="name ellipsis">{{ item.name }}</view>
           <view class="price">
@@ -223,7 +211,7 @@ onLoad(() => {
       <button class="icons-button" open-type="contact">
         <text class="icon-handset"></text>客服
       </button>
-      <navigator class="icons-button" url="/pages/cart/cart" open-type="switchTab">
+      <navigator class="icons-button" url="/pages/cart/cart2">
         <text class="icon-cart"></text>购物车
       </navigator>
     </view>
@@ -232,7 +220,7 @@ onLoad(() => {
       <view class="buynow" @tap="openSkuPopup(SkuMode.Buy)"> 立即购买 </view>
     </view>
   </view>
-
+  <!-- 弹出层组件 type 设置弹出显示的区域 -->
   <uni-popup ref="popup" type="bottom" background-color="#fff">
     <AddressPanel v-if="popupName === 'address'" @close="popup?.close()" />
     <ServicePanel v-if="popupName === 'service'" @close="popup?.close()" />
@@ -506,7 +494,7 @@ page {
   .buttons {
     display: flex;
 
-    & > view {
+    &>view {
       width: 220rpx;
       text-align: center;
       line-height: 72rpx;
