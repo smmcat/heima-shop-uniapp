@@ -7,9 +7,15 @@ import AddressPanel from './components/AddressPanel.vue'
 import ServicePanel from './components/ServicePanel.vue'
 import type { SkuPopupEvent, SkuPopupLocaldata, SkuPopupProps } from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup';
 import { postMemberCartAPI } from '@/services/cart';
+import { userAddressStore } from '@/stores/modules/address';
 
 // 获取屏幕边界到安全区域距离
 const { safeAreaInsets } = uni.getSystemInfoSync()
+
+const addressStore = userAddressStore()
+const selectAddress = computed(() => {
+  return addressStore.selectedAddress?.id ? addressStore.selectedAddress?.fullLocation : '请选择收货地址'
+})
 
 const query = defineProps<{
   id: string
@@ -110,6 +116,12 @@ const selectArrText = computed(() => {
   return skuPopupRef.value?.selectArr?.join(" ").trim() || "请选择商品规格"
 })
 
+// 立即支付按钮单击回调
+const onByNow = (ev: SkuPopupEvent) => {
+  uni.navigateTo({
+    url: `/pagesOrder/create/create?skuId=${ev._id}&count=${ev.buy_num}`
+  })
+}
 
 // sku选择后的回调
 const onAddCart = async (ev: SkuPopupEvent) => {
@@ -121,8 +133,8 @@ const onAddCart = async (ev: SkuPopupEvent) => {
 
 <template>
   <vk-data-goods-sku-popup ref="skuPopupRef" v-model="isShowSku" :localdata="localdata" :mode="mode"
-    addCartBackgroundColor="#ffa868" buyNowBackgroundColor="#27ba9b" :activedStyle="activedStyle"
-    @add-cart="onAddCart" />
+    addCartBackgroundColor="#ffa868" buyNowBackgroundColor="#27ba9b" :activedStyle="activedStyle" @add-cart="onAddCart"
+    @buy-now="onByNow" />
   <scroll-view scroll-y class="viewport">
     <!-- 基本信息 -->
     <view class="goods">
@@ -158,7 +170,7 @@ const onAddCart = async (ev: SkuPopupEvent) => {
         </view>
         <view class="item arrow" @tap="openPopup('address')">
           <text class="label">送至</text>
-          <text class="text ellipsis"> 请选择收获地址 </text>
+          <text class="text ellipsis"> {{ selectAddress }} </text>
         </view>
         <view class="item arrow" @tap="openPopup('service')">
           <text class="label">服务</text>

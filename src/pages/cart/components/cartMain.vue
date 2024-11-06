@@ -81,9 +81,12 @@ const gotoPayment = () => {
         return
     }
     // 跳到结算页 
-    uni.showToast({
-        title: '请等待后续业务完成',
-        icon: 'success'
+    // uni.showToast({
+    //     title: '请等待后续业务完成',
+    //     icon: 'success'
+    // })
+    uni.navigateTo({
+        url: '/pagesOrder/create/create',
     })
 }
 
