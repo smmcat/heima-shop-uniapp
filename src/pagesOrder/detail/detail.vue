@@ -2,9 +2,9 @@
 import type { SkuPopupProps } from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup';
 import { useGuessList } from '@/composables/useGuessList'
 import { OrderState, orderStateList } from '@/services/constants';
-import { getMemberOrderByIdAPI } from '@/services/order';
+import { deleteMemberOrderAPI, getMemberOrderByIdAPI, getMemberOrderLogisticsByIdAPI } from '@/services/order';
 import PageSkeleton from './components/PageSkeleton.vue'
-import type { OrderResult } from '@/types/order';
+import type { LogisticItem, OrderResult } from '@/types/order';
 import { onLoad, onReady } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue'
 import { getMemberOrderConsignmentByIdAPI, getPayMockAPI, getPayWxPayMiniPayAPI, putMemberOrderReceiptByIdAPI } from '@/services/pay';
@@ -86,6 +86,10 @@ const order = ref<OrderResult>()
 const getMemberOrderByIdData = async () => {
   const res = await getMemberOrderByIdAPI(query.id)
   order.value = res.result
+  order.value = res.result
+  if ([OrderState.DaiShouHuo, OrderState.DaiPingJia, OrderState.YiWanCheng].includes(order.value.orderState)) {
+    getMemberOrderLogisticsByIdData()
+  }
 }
 
 // 倒计时结束回调
@@ -130,6 +134,26 @@ const onOrderConfirm = () => {
         order.value = res.result
       }
     }
+  })
+}
+
+// 获取订单物流信息
+const logisticList = ref<LogisticItem[]>()
+const getMemberOrderLogisticsByIdData = async () => {
+  const res = await getMemberOrderLogisticsByIdAPI(query.id)
+  logisticList.value = res.result.list
+}
+
+// 删除订单按钮回调
+const onOrderDelete = () => {
+  uni.showModal({
+    title: '是否删除订单?',
+    success: async (res) => {
+      if (res.confirm) {
+        await deleteMemberOrderAPI({ ids: [query.id] })
+        uni.redirectTo({ url: '/pagesOrder/list/list' })
+      }
+    },
   })
 }
 
@@ -184,12 +208,12 @@ onLoad(() => {
       <!-- 配送状态 -->
       <view class="shipment">
         <!-- 订单物流信息 -->
-        <view v-for="item in 1" :key="item" class="item">
+        <view v-for="item in logisticList" :key="item.id" class="item">
           <view class="message">
-            您已在广州市天河区黑马程序员完成取件，感谢使用菜鸟驿站，期待再次为您服务。
+            {{ item.text }}
           </view>
           <view class="date">
-            2023-12-11 22:11:11
+            {{ item.time }}
           </view>
         </view>
         <!-- 用户收货地址 -->
@@ -258,8 +282,8 @@ onLoad(() => {
       <view class="toolbar-height" :style="{ paddingBottom: safeAreaInsets?.bottom + 'px' }"></view>
       <view class="toolbar" :style="{ paddingBottom: safeAreaInsets?.bottom + 'px' }">
         <!-- 待付款状态:展示支付按钮 -->
-        <template v-if="true">
-          <view class="button primary"> 去支付 </view>
+        <template v-if="order.orderState === OrderState.DaiFuKuan">
+          <view class="button primary" @tap="onOrderPay"> 去支付 </view>
           <view class="button" @tap="popup?.open?.()"> 取消订单 </view>
         </template>
         <!-- 其他订单状态:按需展示按钮 -->
@@ -268,11 +292,15 @@ onLoad(() => {
             再次购买
           </navigator>
           <!-- 待收货状态: 展示确认收货 -->
-          <view class="button primary"> 确认收货 </view>
+          <view class="button primary" v-if="order.orderState === OrderState.DaiShouHuo" @tap="onOrderConfirm"> 确认收货
+          </view>
           <!-- 待评价状态: 展示去评价 -->
-          <view class="button"> 去评价 </view>
+          <view class="button" v-if="order.orderState === OrderState.DaiPingJia"> 去评价 </view>
           <!-- 待评价/已完成/已取消 状态: 展示删除订单 -->
-          <view class="button delete"> 删除订单 </view>
+          <view class="button delete"
+            v-if="order.orderState === OrderState.DaiPingJia || order.orderState === OrderState.YiWanCheng || order.orderState === OrderState.YiQuXiao"
+            @tap="onOrderDelete">
+            删除订单 </view>
         </template>
       </view>
     </template>
