@@ -13,7 +13,7 @@ const httpInterceptor = {
       // 拼接基地址
       options.url = baseURL + options.url
     }
-    options.timeout = 10000
+    options.timeout = 30000
     // 添加额外的请求头
     options.header = {
       ...options.header,

@@ -2,7 +2,7 @@
 import type { SkuPopupProps } from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup';
 import { useGuessList } from '@/composables/useGuessList'
 import { OrderState, orderStateList } from '@/services/constants';
-import { deleteMemberOrderAPI, getMemberOrderByIdAPI, getMemberOrderLogisticsByIdAPI } from '@/services/order';
+import { deleteMemberOrderAPI, getMemberOrderByIdAPI, getMemberOrderCancelByIdAPI, getMemberOrderLogisticsByIdAPI } from '@/services/order';
 import PageSkeleton from './components/PageSkeleton.vue'
 import type { LogisticItem, OrderResult } from '@/types/order';
 import { onLoad, onReady } from '@dcloudio/uni-app';
@@ -35,6 +35,15 @@ const reasonList = ref([
 ])
 // 订单取消原因
 const reason = ref('')
+
+// 取消订单业务
+const cancelOrderByIdData = async () => {
+  const res = await getMemberOrderCancelByIdAPI(query.id, { cancelReason: reason.value })
+  uni.showToast({ icon: 'none', title: '订单已取消成功！' })
+  popup.value?.close()
+  order.value = res.result
+}
+
 // 复制内容
 const onCopy = (id: string) => {
   // 设置系统剪贴板的内容
@@ -242,7 +251,7 @@ onLoad(() => {
             </view>
           </navigator>
           <!-- 待评价状态:展示按钮 -->
-          <view class="action" v-if="true">
+          <view class="action" v-if="order.orderState === OrderState.DaiPingJia">
             <view class="button primary">申请售后</view>
             <navigator url="" class="button"> 去评价 </navigator>
           </view>
@@ -297,9 +306,7 @@ onLoad(() => {
           <!-- 待评价状态: 展示去评价 -->
           <view class="button" v-if="order.orderState === OrderState.DaiPingJia"> 去评价 </view>
           <!-- 待评价/已完成/已取消 状态: 展示删除订单 -->
-          <view class="button delete"
-            v-if="order.orderState === OrderState.DaiPingJia || order.orderState === OrderState.YiWanCheng || order.orderState === OrderState.YiQuXiao"
-            @tap="onOrderDelete">
+          <view class="button delete" v-if="order.orderState >= OrderState.DaiPingJia" @tap="onOrderDelete">
             删除订单 </view>
         </template>
       </view>
@@ -322,7 +329,7 @@ onLoad(() => {
       </view>
       <view class="footer">
         <view class="button" @tap="popup?.close?.()">取消</view>
-        <view class="button primary">确认</view>
+        <view class="button primary" @tap="cancelOrderByIdData">确认</view>
       </view>
     </view>
   </uni-popup>
